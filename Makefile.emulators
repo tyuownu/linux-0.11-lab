@@ -27,7 +27,7 @@ SETROOTDEV_CMD_HDA = $(SETROOTDEV_CMD) $(ROOT_HDA)
 
 QEMU_CMD = $(QEMU) -m 16M -boot a -fda images/Image
 ifneq ($(QEMU_PATH),)
-	QEMU_CMD := $(QEMU_PATH)$(QEMU_CMD) -L $(QEMU_PATH)
+	QEMU_CMD := $(QEMU_CMD) -L $(QEMU_PATH)
 endif
 QEMU_CMD_FDB = $(QEMU_CMD) -fdb rootfs/$(FLP_IMG)
 QEMU_CMD_HDA = $(QEMU_CMD) -hda rootfs/$(HDA_IMG)

@@ -39,9 +39,9 @@ ifeq ($(OS), Linux)
 	STRIP	= strip
 	OBJCOPY = objcopy
 
-	QEMU_PATH= $(TOOL_DIR)/qemu/
+	QEMU_PATH= $(TOOL_DIR)qemu/
 	# This prebuilt qemu is too old, no /dev/kqemu in current kernel now.
-	QEMU     = qemu-system-i386 -no-kqemu
+	QEMU     = qemu-system-i386
 endif
 
 ifeq ($(OS), Darwin)

@@ -10,3 +10,4 @@ cscope.*
 bochsout.txt
 *.orig
 *.rej
+*.swp
