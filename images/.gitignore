@@ -2,3 +2,8 @@ Image
 kernel
 kernel.sym
 kernel.map
+
+
+
+gkd.xml
+gkd_bochs.xml
