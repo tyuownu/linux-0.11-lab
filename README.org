@@ -1,0 +1,21 @@
+#+TITLE: README by tyu
+
+* Purpose
+1. adding elf support to linux-0.11-lab
+2. adding network subsys to linux-0.11-lab
+
+* Todo-lists
+1. rebuild a hdc-0.11.img, with elf(bin_elf/) and a.out(bin/) executable file. [DONE]
+2. adding elf-relative file.                                                   [ongoing]
+
+* Setup Environment
+1. tar debian 1.1 elf file(rootfs/bin)
+   tar xjvf debian1.1_bin.tar
+2. disassembing kernel
+   objdump -d kernel.sys > disa
+
+Before git pull, please check
+1. need update hdc-0.11.img.xz?
+   tar cjvf hdc-0.11.img.xz hdc-0.11.img
+
+* Reference
