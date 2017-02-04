@@ -41,6 +41,8 @@ int copy_mem(int nr,struct task_struct * p)
 {
 	unsigned long old_data_base,new_data_base,data_limit;
 	unsigned long old_code_base,new_code_base,code_limit;
+	unsigned long old_pg_dir, new_pg_dir;
+	unsigned long *dir;
 
 	code_limit=get_limit(0x0f);
 	data_limit=get_limit(0x17);
@@ -50,15 +52,26 @@ int copy_mem(int nr,struct task_struct * p)
 		panic("We don't support separate I&D");
 	if (data_limit < code_limit)
 		panic("Bad data_limit");
-	new_data_base = new_code_base = nr * 0x4000000;
+	new_data_base = new_code_base = 0x1000000;
 	p->start_code = new_code_base;
 	set_base(p->ldt[1],new_code_base);
 	set_base(p->ldt[2],new_data_base);
-	if (copy_page_tables(old_data_base,new_data_base,data_limit)) {
+	old_pg_dir = current->tss.cr3;
+	new_pg_dir = get_free_page();
+	if (!new_pg_dir)
+		return -EAGAIN;
+	if (copy_page_tables(old_pg_dir,new_pg_dir,data_limit)) {
 		printk("free_page_tables: from copy_mem\n");
-		free_page_tables(new_data_base,data_limit);
+		free_page_tables(new_pg_dir,data_limit);
+		dir = (unsigned long*) new_pg_dir;
+		*(dir++) = 0;
+		*(dir++) = 0;
+		*(dir++) = 0;
+		*(dir++) = 0;
+		free_page(new_pg_dir);
 		return -ENOMEM;
 	}
+	p->tss.cr3 = (unsigned long) new_pg_dir;
 	return 0;
 }
 
@@ -117,7 +130,7 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 	p->tss.trace_bitmap = 0x80000000;
 	if (last_task_used_math == current)
 		__asm__("clts ; fnsave %0"::"m" (p->tss.i387));
-	if (copy_mem(nr,p)) {
+	if (copy_mem(nr,p)) { /*function change*/
 		task[nr] = NULL;
 		free_page((long) p);
 		return -EAGAIN;

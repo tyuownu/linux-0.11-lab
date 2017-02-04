@@ -37,7 +37,7 @@ static inline void oom(void)
 }
 
 #define invalidate() \
-__asm__("movl %%eax,%%cr3"::"a" (0))
+__asm__("movl %%eax,%%cr3"::"a" (current->tss.cr3))
 
 /* these are not to be changed without changing head.s etc */
 #define LOW_MEM 0x100000
@@ -107,12 +107,12 @@ int free_page_tables(unsigned long from,unsigned long size)
 	unsigned long *pg_table;
 	unsigned long * dir, nr;
 
-	if (from & 0x3fffff)
+	if (from & 0xfff)
 		panic("free_page_tables called with wrong alignment");
 	if (!from)
 		panic("Trying to free up swapper memory space");
 	size = (size + 0x3fffff) >> 22;
-	dir = (unsigned long *) ((from>>20) & 0xffc); /* _pg_dir = 0 */
+	dir = (unsigned long *) from + 4; /* _pg_dir = 0 */
 	for ( ; size-->0 ; dir++) {
 		if (!(1 & *dir))
 			continue;
@@ -154,12 +154,18 @@ int copy_page_tables(unsigned long from,unsigned long to,long size)
 	unsigned long this_page;
 	unsigned long * from_dir, * to_dir;
 	unsigned long nr;
+	int i;
 
-	if ((from&0x3fffff) || (to&0x3fffff))
+	if ((from&0xfff) || (to&0xfff))
 		panic("copy_page_tables called with wrong alignment");
-	from_dir = (unsigned long *) ((from>>20) & 0xffc); /* _pg_dir = 0 */
-	to_dir = (unsigned long *) ((to>>20) & 0xffc);
+	from_dir = (unsigned long *) from; /* _pg_dir = 0 */
+	to_dir = (unsigned long *) to;
+	i = 4;
+	for(;i-->0; from_dir++, to_dir++)
+		*to_dir = *from_dir;
 	size = ((unsigned) (size+0x3fffff)) >> 22;
+	if (0 == from)
+		from_dir = (unsigned long *) from;
 	for( ; size-->0 ; from_dir++,to_dir++) {
 		if (1 & *to_dir)
 			panic("copy_page_tables: already exist");
@@ -204,7 +210,7 @@ unsigned long put_page(unsigned long page,unsigned long address)
 		printk("Trying to put page %p at %p\n",page,address);
 	if (mem_map[(page-LOW_MEM)>>12] != 1)
 		printk("mem_map disagrees with %p at %p\n",page,address);
-	page_table = (unsigned long *) ((address>>20) & 0xffc);
+	page_table = (unsigned long *) (current->tss.cr3 + ((address>>20) & 0xffc));
 	if ((*page_table)&1)
 		page_table = (unsigned long *) (0xfffff000 & *page_table);
 	else {
@@ -254,7 +260,8 @@ void do_wp_page(unsigned long error_code,unsigned long address)
 #endif
 	un_wp_page((unsigned long *)
 		(((address>>10) & 0xffc) + (0xfffff000 &
-		*((unsigned long *) ((address>>20) &0xffc)))));
+		*((unsigned long *) (current->tss.cr3 
+				+ ((address>>20) &0xffc))))));
 
 }
 
@@ -262,7 +269,8 @@ void write_verify(unsigned long address)
 {
 	unsigned long page;
 
-	if (!( (page = *((unsigned long *) ((address>>20) & 0xffc)) )&1))
+	if (!( (page = *((unsigned long *) (current->tss.cr3 + 
+							((address>>20) & 0xffc)) ))&1))
 		return;
 	page &= 0xfffff000;
 	page += ((address>>10) & 0xffc);
@@ -301,7 +309,7 @@ static int try_to_share(unsigned long address, struct task_struct * p)
 	from_page += ((p->start_code>>20) & 0xffc);
 	to_page += ((current->start_code>>20) & 0xffc);
 /* is there a page-directory at from? */
-	from = *(unsigned long *) from_page;
+	from = *(unsigned long *) (p->tss.cr3 + from_page);
 	if (!(from & 1))
 		return 0;
 	from &= 0xfffff000;
@@ -313,10 +321,10 @@ static int try_to_share(unsigned long address, struct task_struct * p)
 	phys_addr &= 0xfffff000;
 	if (phys_addr >= HIGH_MEMORY || phys_addr < LOW_MEM)
 		return 0;
-	to = *(unsigned long *) to_page;
+	to = *(unsigned long *) (current->tss.cr3 + to_page);
 	if (!(to & 1)) {
 		if ((to = get_free_page()))
-			*(unsigned long *) to_page = to | 7;
+			*(unsigned long *) (current->tss.cr3 + to_page) = to | 7;
 		else
 			oom();
 	}
@@ -357,7 +365,7 @@ static int share_page(unsigned long address)
 			continue;
 		if ((*p)->executable != current->executable)
 			continue;
-		if (try_to_share(address,*p))
+		if (try_to_share(address,*p))/*function change*/
 			return 1;
 	}
 	return 0;
@@ -376,7 +384,7 @@ void do_no_page(unsigned long error_code,unsigned long address)
 		get_empty_page(address);
 		return;
 	}
-	if (share_page(tmp))
+	if (share_page(tmp)) /*function change*/
 		return;
 	if (!(page = get_free_page()))
 		oom();
